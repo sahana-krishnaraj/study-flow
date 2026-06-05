@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
+import bcrypt from "bcryptjs";
+import { AuthError } from "next-auth";
+import { auth, signIn } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { AssignmentStatus, Priority } from "@/generated/prisma/client";
 
@@ -133,4 +136,53 @@ export async function setAssignmentStatus(id: string, status: AssignmentStatus) 
 
   revalidatePath("/");
   return { success: true };
+}
+
+export async function signUp(data: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  const name = data.name?.trim();
+  const email = data.email?.trim().toLowerCase();
+  const password = data.password;
+
+  if (!email || !password) {
+    return { error: "Email and password are required." };
+  }
+
+  if (password.length < 6) {
+    return { error: "Password must be at least 6 characters." };
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return {
+      error: existing.password
+        ? "An account with this email already exists."
+        : "This email is already linked to Google. Sign in with Google instead.",
+    };
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  await prisma.user.create({
+    data: {
+      name: name || null,
+      email,
+      password: hashedPassword,
+    },
+  });
+
+  try {
+    await signIn("credentials", { email, password, redirectTo: "/" });
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+    if (error instanceof AuthError) {
+      return { error: "Account created but sign-in failed. Please log in." };
+    }
+    throw error;
+  }
 }

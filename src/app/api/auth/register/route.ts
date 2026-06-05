@@ -25,11 +25,13 @@ export async function POST(request: Request) {
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
+
     if (existing) {
-      return NextResponse.json(
-        { error: "An account with this email already exists." },
-        { status: 409 },
-      );
+      const message = existing.password
+        ? "An account with this email already exists."
+        : "This email is already linked to Google. Sign in with Google instead.";
+
+      return NextResponse.json({ error: message }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -43,9 +45,16 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Registration error:", error);
+
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
+      {
+        error:
+          process.env.NODE_ENV === "development" && error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again.",
+      },
       { status: 500 },
     );
   }

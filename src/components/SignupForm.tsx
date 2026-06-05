@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { signIn } from "next-auth/react";
+import { signUp } from "@/lib/actions";
 
 interface SignupFormProps {
   googleConfigured: boolean;
@@ -20,33 +22,20 @@ export function SignupForm({ googleConfigured }: SignupFormProps) {
     setError("");
     setLoading(true);
 
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
-    });
+    try {
+      const result = await signUp({ name, email, password });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.error || "Something went wrong.");
-      setLoading(false);
-      return;
+      if (result?.error) {
+        setError(result.error);
+      }
+    } catch (error) {
+      if (isRedirectError(error)) {
+        throw error;
+      }
+      setError("Could not reach the server. Make sure the dev server is running.");
     }
-
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
 
     setLoading(false);
-
-    if (result?.error) {
-      setError("Account created but sign-in failed. Please log in.");
-    } else {
-      window.location.href = "/";
-    }
   }
 
   return (
