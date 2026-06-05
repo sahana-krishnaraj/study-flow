@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isRedirectError } from "next/dist/client/components/redirect-error";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { auth, signIn } from "@/lib/auth";
@@ -166,23 +165,30 @@ export async function signUp(data: {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  await prisma.user.create({
-    data: {
-      name: name || null,
-      email,
-      password: hashedPassword,
-    },
-  });
+  try {
+    await prisma.user.create({
+      data: {
+        name: name || null,
+        email,
+        password: hashedPassword,
+      },
+    });
+  } catch (error) {
+    console.error("Sign up database error:", error);
+    return {
+      error:
+        "Unable to create account. The database may not be configured for this environment.",
+    };
+  }
 
   try {
-    await signIn("credentials", { email, password, redirectTo: "/" });
+    await signIn("credentials", { email, password, redirect: false });
+    return { success: true };
   } catch (error) {
-    if (isRedirectError(error)) {
-      throw error;
-    }
     if (error instanceof AuthError) {
       return { error: "Account created but sign-in failed. Please log in." };
     }
-    throw error;
+    console.error("Sign up auth error:", error);
+    return { error: "Account created but sign-in failed. Please log in." };
   }
 }

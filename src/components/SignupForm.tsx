@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { signIn } from "next-auth/react";
 import { signUp } from "@/lib/actions";
 
@@ -27,12 +26,15 @@ export function SignupForm({ googleConfigured }: SignupFormProps) {
 
       if (result?.error) {
         setError(result.error);
+        setLoading(false);
+        return;
       }
+
+      window.location.href = "/";
+      return;
     } catch (error) {
-      if (isRedirectError(error)) {
-        throw error;
-      }
-      setError("Could not reach the server. Make sure the dev server is running.");
+      console.error("Sign up failed:", error);
+      setError("Something went wrong. Please try again.");
     }
 
     setLoading(false);
